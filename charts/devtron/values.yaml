@@ -93,10 +93,10 @@ components:
         SCRIPT_LOCATION: "scripts/sql/"
         GIT_REPO_URL: "https://github.com/devtron-labs/devtron.git"
         DB_NAME: "orchestrator"
-        GIT_HASH: "a5f55594f7e1c41fc77e5915b9e6f6df537da4da"
+        GIT_HASH: "933b88b66045b710140d1c215343ce91a5b7e320"
       casbin:
         GIT_BRANCH: "main"
         SCRIPT_LOCATION: "scripts/casbin/"
         GIT_REPO_URL: "https://github.com/devtron-labs/devtron.git"
         DB_NAME: "casbin"
-        GIT_HASH: "a5f55594f7e1c41fc77e5915b9e6f6df537da4da"
+        GIT_HASH: "933b88b66045b710140d1c215343ce91a5b7e320"
