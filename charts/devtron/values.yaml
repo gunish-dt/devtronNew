@@ -76,7 +76,7 @@ components:
     imagePullPolicy: IfNotPresent
 
   kubelink:
-    image: "quay.io/devtron/kubelink:bb988d66-7-120"
+    image: "quay.io/devtron/kubelink:dbb856dd-7-130"
     imagePullPolicy: IfNotPresent
 
   postgres:
@@ -93,10 +93,10 @@ components:
         SCRIPT_LOCATION: "scripts/sql/"
         GIT_REPO_URL: "https://github.com/devtron-labs/devtron.git"
         DB_NAME: "orchestrator"
-        GIT_HASH: "bb988d66653cd9ffc0bb99f41efada2d17dcb8b4"
+        GIT_HASH: "dbb856dd387a073913cf518f18511693eb2b986a"
       casbin:
         GIT_BRANCH: "main"
         SCRIPT_LOCATION: "scripts/casbin/"
         GIT_REPO_URL: "https://github.com/devtron-labs/devtron.git"
         DB_NAME: "casbin"
-        GIT_HASH: "bb988d66653cd9ffc0bb99f41efada2d17dcb8b4"
+        GIT_HASH: "dbb856dd387a073913cf518f18511693eb2b986a"
