@@ -11,7 +11,7 @@ components:
   argocdDexServer:
     image: "quay.io/dexidp/dex:v2.25.0"
   kubelink:
-    image: "quay.io/devtron/kubelink:933b88b6-7-118"
+    image: "quay.io/devtron/kubelink:bb988d66-7-120"
   postgres:
     image: "quay.io/devtron/postgres:11.3.0-debian-9-r28"
   
@@ -20,7 +20,7 @@ components:
     envVars:
       devtron:
         GIT_BRANCH: "main"
-        GIT_HASH: "933b88b66045b710140d1c215343ce91a5b7e320"
+        GIT_HASH: "bb988d66653cd9ffc0bb99f41efada2d17dcb8b4"
       casbin:
         GIT_BRANCH: "main"
-        GIT_HASH: "933b88b66045b710140d1c215343ce91a5b7e320"
+        GIT_HASH: "bb988d66653cd9ffc0bb99f41efada2d17dcb8b4"
