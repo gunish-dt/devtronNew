@@ -1,5 +1,5 @@
 installer:
-  release: "v0.4.1"
+  release: "v0.4.2"
   image: "quay.io/devtron/inception"
   tag: "acb623ff-185-7117"
   
@@ -11,7 +11,7 @@ components:
   argocdDexServer:
     image: "quay.io/dexidp/dex:v2.25.0"
   kubelink:
-    image: "quay.io/devtron/kubelink:1be465ec-318-7966"
+    image: "quay.io/devtron/kubelink:dbb856dd-7-137"
   postgres:
     image: "quay.io/devtron/postgres:11.9.0-debian-10-r26"
   
@@ -20,7 +20,7 @@ components:
     envVars:
       devtron:
         GIT_BRANCH: "main"
-        GIT_HASH: "11d3bc2c2e215b73dab11a5f35f63d3c49ab0964"
+        GIT_HASH: "dbb856dd387a073913cf518f18511693eb2b986a"
       casbin:
         GIT_BRANCH: "main"
-        GIT_HASH: "11d3bc2c2e215b73dab11a5f35f63d3c49ab0964"
+        GIT_HASH: "dbb856dd387a073913cf518f18511693eb2b986a"
