@@ -14,12 +14,15 @@ import (
 	"github.com/devtron-labs/devtron/api/dashboardEvent"
 	"github.com/devtron-labs/devtron/api/externalLink"
 	client "github.com/devtron-labs/devtron/api/helm-app"
+	"github.com/devtron-labs/devtron/api/module"
+	"github.com/devtron-labs/devtron/api/server"
 	"github.com/devtron-labs/devtron/api/sso"
 	"github.com/devtron-labs/devtron/api/team"
 	"github.com/devtron-labs/devtron/api/user"
 	"github.com/devtron-labs/devtron/client/argocdServer/session"
 	"github.com/devtron-labs/devtron/client/dashboard"
 	"github.com/devtron-labs/devtron/client/telemetry"
+	"github.com/devtron-labs/devtron/internal/sql/repository"
 	app2 "github.com/devtron-labs/devtron/internal/sql/repository/app"
 	"github.com/devtron-labs/devtron/internal/sql/repository/pipelineConfig"
 	"github.com/devtron-labs/devtron/internal/util"
@@ -52,6 +55,8 @@ func InitializeApp() (*App, error) {
 		appStoreDiscover.AppStoreDiscoverWireSet,
 		appStoreValues.AppStoreValuesWireSet,
 		appStoreDeployment.AppStoreDeploymentWireSet,
+		server.ServerWireSet,
+		module.ModuleWireSet,
 
 		NewApp,
 		NewMuxRouter,
@@ -82,6 +87,8 @@ func InitializeApp() (*App, error) {
 		wire.Bind(new(pipelineConfig.PipelineRepository), new(*pipelineConfig.PipelineRepositoryImpl)),
 		app2.NewAppRepositoryImpl,
 		wire.Bind(new(app2.AppRepository), new(*app2.AppRepositoryImpl)),
+		repository.NewAttributesRepositoryImpl,
+		wire.Bind(new(repository.AttributesRepository), new(*repository.AttributesRepositoryImpl)),
 		pipelineConfig.NewCiPipelineRepositoryImpl,
 		wire.Bind(new(pipelineConfig.CiPipelineRepository), new(*pipelineConfig.CiPipelineRepositoryImpl)),
 		// // needed for enforcer util ends

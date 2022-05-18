@@ -137,6 +137,8 @@ type PipelineBuilderImpl struct {
 	prePostCdScriptHistoryService    history.PrePostCdScriptHistoryService
 	deploymentTemplateHistoryService history.DeploymentTemplateHistoryService
 	appLevelMetricsRepository        repository.AppLevelMetricsRepository
+	pipelineStageService             PipelineStageService
+	chartTemplateService             util.ChartTemplateService
 }
 
 func NewPipelineBuilderImpl(logger *zap.SugaredLogger,
@@ -168,7 +170,9 @@ func NewPipelineBuilderImpl(logger *zap.SugaredLogger,
 	prePostCiScriptHistoryService history.PrePostCiScriptHistoryService,
 	prePostCdScriptHistoryService history.PrePostCdScriptHistoryService,
 	deploymentTemplateHistoryService history.DeploymentTemplateHistoryService,
-	appLevelMetricsRepository repository.AppLevelMetricsRepository) *PipelineBuilderImpl {
+	appLevelMetricsRepository repository.AppLevelMetricsRepository,
+	pipelineStageService PipelineStageService,
+	chartTemplateService util.ChartTemplateService) *PipelineBuilderImpl {
 	return &PipelineBuilderImpl{
 		logger:                           logger,
 		dbPipelineOrchestrator:           dbPipelineOrchestrator,
@@ -202,6 +206,8 @@ func NewPipelineBuilderImpl(logger *zap.SugaredLogger,
 		prePostCdScriptHistoryService:    prePostCdScriptHistoryService,
 		deploymentTemplateHistoryService: deploymentTemplateHistoryService,
 		appLevelMetricsRepository:        appLevelMetricsRepository,
+		pipelineStageService:             pipelineStageService,
+		chartTemplateService:             chartTemplateService,
 	}
 }
 
@@ -368,16 +374,6 @@ func (impl PipelineBuilderImpl) getCiTemplateVariables(appId int) (ciConfig *bea
 		impl.logger.Debugw("error in json unmarshal", "app", appId, "err", err)
 		return nil, err
 	}
-	var beforeDockerBuild []*bean.Task
-	var afterDockerBuild []*bean.Task
-	if err := json.Unmarshal([]byte(template.BeforeDockerBuild), &beforeDockerBuild); err != nil {
-		impl.logger.Debugw("error in BeforeDockerBuild json unmarshal", "app", appId, "err", err)
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(template.AfterDockerBuild), &afterDockerBuild); err != nil {
-		impl.logger.Debugw("error in AfterDockerBuild json unmarshal", "app", appId, "err", err)
-		return nil, err
-	}
 	regHost, err := template.DockerRegistry.GetRegistryLocation()
 	if err != nil {
 		impl.logger.Errorw("invalid reg url", "err", err)
@@ -390,8 +386,6 @@ func (impl PipelineBuilderImpl) getCiTemplateVariables(appId int) (ciConfig *bea
 		DockerRepository:  template.DockerRepository,
 		DockerRegistry:    template.DockerRegistry.Id,
 		DockerRegistryUrl: regHost,
-		BeforeDockerBuild: beforeDockerBuild,
-		AfterDockerBuild:  afterDockerBuild,
 		DockerBuildConfig: &bean.DockerBuildConfig{DockerfilePath: template.DockerfilePath, Args: dockerArgs, GitMaterialId: template.GitMaterialId},
 		Version:           template.Version,
 		CiTemplateName:    template.TemplateName,
@@ -934,21 +928,19 @@ func (impl PipelineBuilderImpl) deletePipeline(request *bean.CiPatchRequest) (*b
 			return nil, err
 		}
 	}
-	for _, ciScript := range request.CiPipeline.BeforeDockerBuildScripts {
-		ciPipelineScript := impl.dbPipelineOrchestrator.BuildCiPipelineScript(request.UserId, ciScript, BEFORE_DOCKER_BUILD, request.CiPipeline)
-		//creating history entry
-		_, err := impl.prePostCiScriptHistoryService.CreatePrePostCiScriptHistory(ciPipelineScript, tx, false, 0, time.Time{})
+	if request.CiPipeline.PreBuildStage != nil && request.CiPipeline.PreBuildStage.Id > 0 {
+		//deleting pre stage
+		err = impl.pipelineStageService.DeleteCiStage(request.CiPipeline.PreBuildStage, request.UserId, tx)
 		if err != nil {
-			impl.logger.Errorw("error in creating ci script history entry", "err", err, "ciPipelineScript", ciPipelineScript)
+			impl.logger.Errorw("error in deleting pre stage", "err", err, "preBuildStage", request.CiPipeline.PreBuildStage)
 			return nil, err
 		}
 	}
-	for _, ciScript := range request.CiPipeline.AfterDockerBuildScripts {
-		ciPipelineScript := impl.dbPipelineOrchestrator.BuildCiPipelineScript(request.UserId, ciScript, AFTER_DOCKER_BUILD, request.CiPipeline)
-		//creating history entry
-		_, err := impl.prePostCiScriptHistoryService.CreatePrePostCiScriptHistory(ciPipelineScript, tx, false, 0, time.Time{})
+	if request.CiPipeline.PostBuildStage != nil && request.CiPipeline.PostBuildStage.Id > 0 {
+		//deleting post stage
+		err = impl.pipelineStageService.DeleteCiStage(request.CiPipeline.PreBuildStage, request.UserId, tx)
 		if err != nil {
-			impl.logger.Errorw("error in creating ci script history entry", "err", err, "ciPipelineScript", ciPipelineScript)
+			impl.logger.Errorw("error in deleting post stage", "err", err, "postBuildStage", request.CiPipeline.PostBuildStage)
 			return nil, err
 		}
 	}
@@ -1235,7 +1227,7 @@ type Rolling struct {
 	MaxUnavailable int    `json:"maxUnavailable"`
 }
 
-func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.App, pipeline *bean.CDPipelineConfigObject, userID int32) (pipelineRes int, err error) {
+func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.App, pipeline *bean.CDPipelineConfigObject, userId int32) (pipelineRes int, err error) {
 	dbConnection := impl.pipelineRepository.GetConnection()
 	tx, err := dbConnection.Begin()
 	if err != nil {
@@ -1248,12 +1240,14 @@ func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.
 	if err != nil {
 		return 0, err
 	}
-	envOverride, err := impl.propertiesConfigService.CreateIfRequired(chart, pipeline.EnvironmentId, userID, false, models.CHARTSTATUS_NEW, false, pipeline.Namespace, tx)
+	envOverride, err := impl.propertiesConfigService.CreateIfRequired(chart, pipeline.EnvironmentId, userId, false, models.CHARTSTATUS_NEW, false, pipeline.Namespace, tx)
 	if err != nil {
 		return 0, err
 	}
 
 	chartRepoName := impl.appService.GetChartRepoName(chart.GitRepoUrl)
+	//getting user name & emailId for commit author data
+	userEmailId, userName := impl.chartTemplateService.GetUserEmailIdAndNameForGitOpsCommit(userId)
 	chartGitAttr := &util.ChartConfig{
 		FileName:       fmt.Sprintf("_%d-values.yaml", envOverride.TargetEnvironment),
 		FileContent:    string(DefaultPipelineValue),
@@ -1261,6 +1255,8 @@ func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.
 		ChartLocation:  chart.ChartLocation,
 		ChartRepoName:  chartRepoName,
 		ReleaseMessage: fmt.Sprintf("release-%d-env-%d ", 0, envOverride.TargetEnvironment),
+		UserEmailId:    userEmailId,
+		UserName:       userName,
 	}
 	//FIXME: why only bitbucket?
 	gitOpsConfigBitbucket, err := impl.gitOpsRepository.GetGitOpsConfigByProvider(util.BITBUCKET_PROVIDER)
@@ -1290,7 +1286,7 @@ func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.
 
 	// Get pipeline override based on Deployment strategy
 	//TODO: mark as created in our db
-	pipelineId, err := impl.dbPipelineOrchestrator.CreateCDPipelines(pipeline, app.Id, userID, tx)
+	pipelineId, err := impl.dbPipelineOrchestrator.CreateCDPipelines(pipeline, app.Id, userId, tx)
 	if err != nil {
 		impl.logger.Errorw("error in ")
 		return 0, err
@@ -1318,7 +1314,7 @@ func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.
 			ComponentId:   pipelineId,
 			Type:          "CD_PIPELINE",
 			Active:        true,
-			AuditLog:      sql.AuditLog{CreatedBy: userID, CreatedOn: time.Now(), UpdatedOn: time.Now(), UpdatedBy: userID},
+			AuditLog:      sql.AuditLog{CreatedBy: userId, CreatedOn: time.Now(), UpdatedOn: time.Now(), UpdatedBy: userId},
 		}
 		_, err = impl.appWorkflowRepository.SaveAppWorkflowMapping(appWorkflowMap, tx)
 		if err != nil {
@@ -1354,7 +1350,7 @@ func (impl PipelineBuilderImpl) createCdPipeline(ctx context.Context, app *app2.
 			Config:     string(item.Config),
 			Default:    item.Default,
 			Deleted:    false,
-			AuditLog:   sql.AuditLog{UpdatedBy: userID, CreatedBy: userID, UpdatedOn: time.Now(), CreatedOn: time.Now()},
+			AuditLog:   sql.AuditLog{UpdatedBy: userId, CreatedBy: userId, UpdatedOn: time.Now(), CreatedOn: time.Now()},
 		}
 		err = impl.pipelineConfigRepository.Save(strategy, tx)
 		if err != nil {
@@ -2324,5 +2320,13 @@ func (impl PipelineBuilderImpl) GetCiPipelineById(pipelineId int) (ciPipeline *b
 		ciPipeline.AppWorkflowId = mapping.AppWorkflowId
 	}
 
+	//getting pre stage and post stage details
+	preStageDetail, postStageDetail, err := impl.pipelineStageService.GetCiPipelineStageData(ciPipeline.Id)
+	if err != nil {
+		impl.logger.Errorw("error in getting pre & post stage detail by ciPipelineId", "err", err, "ciPipelineId", ciPipeline.Id)
+		return nil, err
+	}
+	ciPipeline.PreBuildStage = preStageDetail
+	ciPipeline.PostBuildStage = postStageDetail
 	return ciPipeline, err
 }

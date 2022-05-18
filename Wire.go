@@ -32,10 +32,12 @@ import (
 	"github.com/devtron-labs/devtron/api/deployment"
 	"github.com/devtron-labs/devtron/api/externalLink"
 	client "github.com/devtron-labs/devtron/api/helm-app"
+	"github.com/devtron-labs/devtron/api/module"
 	"github.com/devtron-labs/devtron/api/restHandler"
 	pipeline2 "github.com/devtron-labs/devtron/api/restHandler/app"
 	"github.com/devtron-labs/devtron/api/router"
 	"github.com/devtron-labs/devtron/api/router/pubsub"
+	"github.com/devtron-labs/devtron/api/server"
 	"github.com/devtron-labs/devtron/api/sse"
 	"github.com/devtron-labs/devtron/api/sso"
 	"github.com/devtron-labs/devtron/api/team"
@@ -85,6 +87,9 @@ import (
 	"github.com/devtron-labs/devtron/pkg/pipeline"
 	history3 "github.com/devtron-labs/devtron/pkg/pipeline/history"
 	repository3 "github.com/devtron-labs/devtron/pkg/pipeline/history/repository"
+	repository5 "github.com/devtron-labs/devtron/pkg/pipeline/repository"
+	"github.com/devtron-labs/devtron/pkg/plugin"
+	repository6 "github.com/devtron-labs/devtron/pkg/plugin/repository"
 	"github.com/devtron-labs/devtron/pkg/projectManagementService/jira"
 	"github.com/devtron-labs/devtron/pkg/security"
 	"github.com/devtron-labs/devtron/pkg/sql"
@@ -101,6 +106,7 @@ func InitializeApp() (*App, error) {
 	wire.Build(
 		// ----- wireset start
 		sql.PgSqlWireSet,
+		user.SelfRegistrationWireSet,
 		externalLink.ExternalLinkWireSet,
 		team.TeamsWireSet,
 		AuthWireSet,
@@ -114,6 +120,8 @@ func InitializeApp() (*App, error) {
 		appStoreDiscover.AppStoreDiscoverWireSet,
 		appStoreValues.AppStoreValuesWireSet,
 		appStoreDeployment.AppStoreDeploymentWireSet,
+		server.ServerWireSet,
+		module.ModuleWireSet,
 		// -------wireset end ----------
 		gitSensor.GetGitSensorConfig,
 		gitSensor.NewGitSensorSession,
@@ -680,8 +688,28 @@ func InitializeApp() (*App, error) {
 		wire.Bind(new(history3.ConfigMapHistoryService), new(*history3.ConfigMapHistoryServiceImpl)),
 		history3.NewPipelineStrategyHistoryServiceImpl,
 		wire.Bind(new(history3.PipelineStrategyHistoryService), new(*history3.PipelineStrategyHistoryServiceImpl)),
-
 		//history ends
+
+		//plugin starts
+		repository6.NewGlobalPluginRepository,
+		wire.Bind(new(repository6.GlobalPluginRepository), new(*repository6.GlobalPluginRepositoryImpl)),
+
+		plugin.NewGlobalPluginService,
+		wire.Bind(new(plugin.GlobalPluginService), new(*plugin.GlobalPluginServiceImpl)),
+
+		restHandler.NewGlobalPluginRestHandler,
+		wire.Bind(new(restHandler.GlobalPluginRestHandler), new(*restHandler.GlobalPluginRestHandlerImpl)),
+
+		router.NewGlobalPluginRouter,
+		wire.Bind(new(router.GlobalPluginRouter), new(*router.GlobalPluginRouterImpl)),
+
+		repository5.NewPipelineStageRepository,
+		wire.Bind(new(repository5.PipelineStageRepository), new(*repository5.PipelineStageRepositoryImpl)),
+
+		pipeline.NewPipelineStageService,
+		wire.Bind(new(pipeline.PipelineStageService), new(*pipeline.PipelineStageServiceImpl)),
+		//plugin ends
+
 		//	AuthWireSet,
 	)
 	return &App{}, nil
