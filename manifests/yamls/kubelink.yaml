@@ -21,7 +21,7 @@ spec:
       serviceAccount: devtron
       containers:
         - name: kubelink
-          image: "quay.io/devtron/kubelink:b3c0fea5-7-138"
+          image: "quay.io/devtron/kubelink:6a108205-7-143"
           imagePullPolicy: IfNotPresent
           ports:
             - name: app
